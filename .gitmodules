@@ -1,0 +1,6 @@
+[submodule "ext/Catch"]
+	path = ext/Catch
+	url = https://github.com/philsquared/Catch.git
+[submodule "ext/cereal"]
+	path = ext/cereal
+	url = https://github.com/USCiLab/cereal.git
