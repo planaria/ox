@@ -15,9 +15,12 @@ namespace ox
 			, boost::noncopyable
 		{
 		public:
-			explicit connection(boost::asio::io_service& io_service)
+			explicit connection(
+				boost::asio::io_service& io_service,
+				const std::function<void(const boost::system::error_code&)>& error_handler)
 				: socket_(io_service)
 				, strand_(io_service)
+				, error_handler_(error_handler)
 			{
 			}
 
@@ -62,33 +65,43 @@ namespace ox
 				});
 			}
 
-			void receive()
+			template <class Callback>
+			void receive(Callback callback)
 			{
 				auto self = this->shared_from_this();
 
-				receive_integer([self](const auto& ec, std::uint64_t id) {
+				receive_integer([self, callback](const auto& ec, std::uint64_t id) {
 					if (ec)
+					{
+						callback(ec);
 						return;
+					}
 
-					self->receive_integer([self, id](const auto& ec, std::uint64_t size) {
+					self->receive_integer([self, id, callback](const auto& ec, std::uint64_t size) {
 						if (ec)
+						{
+							callback(ec);
 							return;
+						}
 
 						if (size == std::numeric_limits<std::uint64_t>::max())
 						{
 							std::lock_guard<std::mutex> lock(self->mutex_);
 
 							self->callback_map_.erase(id);
-							self->receive();
+							self->receive(callback);
 						}
 						else
 						{
-							self->strand_.post([self, id, size]() {
+							self->strand_.post([self, id, size, callback]() {
 								auto str_buffer = std::make_shared<std::vector<char>>(size);
 
-								boost::asio::async_read(self->socket_, boost::asio::buffer(*str_buffer), [self, id, str_buffer](const auto& ec, auto /*bytes_transferred*/) {
+								boost::asio::async_read(self->socket_, boost::asio::buffer(*str_buffer), [self, id, str_buffer, callback](const auto& ec, auto /*bytes_transferred*/) {
 									if (ec)
+									{
+										callback(ec);
 										return;
+									}
 
 									std::function<void(const std::string&)> f;
 
@@ -103,7 +116,7 @@ namespace ox
 									if (f)
 										f(std::string(str_buffer->data(), str_buffer->size()));
 
-									self->receive();
+									self->receive(callback);
 								});
 							});
 						}
@@ -131,7 +144,12 @@ namespace ox
 				write_integer(*buffer, std::numeric_limits<std::uint64_t>::max());
 
 				strand_.post([self, buffer]() {
-					boost::asio::async_write(self->socket_, boost::asio::buffer(*buffer), [self, buffer](const auto& /*ec*/, auto /*bytes_transferred*/) {
+					boost::asio::async_write(self->socket_, boost::asio::buffer(*buffer), [self, buffer](const auto& ec, auto /*bytes_transferred*/) {
+						if (ec)
+						{
+							self->error_handler_(ec);
+							return;
+						}
 					});
 				});
 			}
@@ -148,7 +166,12 @@ namespace ox
 				buffer->insert(buffer->end(), str.begin(), str.end());
 
 				strand_.post([self, buffer]() {
-					boost::asio::async_write(self->socket_, boost::asio::buffer(*buffer), [self, buffer](const auto& /*ec*/, auto /*bytes_transferred*/) {
+					boost::asio::async_write(self->socket_, boost::asio::buffer(*buffer), [self, buffer](const auto& ec, auto /*bytes_transferred*/) {
+						if (ec)
+						{
+							self->error_handler_(ec);
+							return;
+						}
 					});
 				});
 			}
@@ -331,6 +354,7 @@ namespace ox
 
 			boost::asio::ip::tcp::socket socket_;
 			boost::asio::io_service::strand strand_;
+			std::function<void(const boost::system::error_code&)> error_handler_;
 
 			std::mutex mutex_;
 			std::unordered_map<std::uint64_t, std::function<void(const std::string&)>> callback_map_;

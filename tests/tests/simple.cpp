@@ -19,5 +19,8 @@ TEST_CASE("simple")
 		result.set_value(str);
 	});
 
+	using namespace std::chrono_literals;
+	REQUIRE(f.wait_for(1s) == std::future_status::ready);
+
 	CHECK(f.get() == "123");
 }

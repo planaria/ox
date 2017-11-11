@@ -41,7 +41,7 @@ namespace ox
 		void accept()
 		{
 			auto f = function_;
-			auto c = std::make_shared<detail::connection>(io_service_);
+			auto c = std::make_shared<detail::connection>(io_service_, [](const auto& /*ec*/) {});
 
 			c->resgister_callback([=](const auto& str) {
 				std::istringstream is(str);
@@ -63,7 +63,8 @@ namespace ox
 						if (ec)
 							return;
 
-						c->receive();
+						c->receive([](const auto& /*ec*/) {
+						});
 					});
 				}
 

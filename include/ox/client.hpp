@@ -35,23 +35,33 @@ namespace ox
 			thread_.join();
 		}
 
-		void operator()(Arguments... args)
+		template <class ErrorHandler>
+		void operator()(Arguments... args, ErrorHandler error_handler)
 		{
 			boost::asio::ip::tcp::resolver::query query(host_, boost::lexical_cast<std::string>(port_));
 
 			resolver_.async_resolve(query, [=](const auto& ec, auto it) {
 				if (ec)
+				{
+					error_handler(ec);
 					return;
+				}
 
-				auto c = std::make_shared<detail::connection>(io_service_);
+				auto c = std::make_shared<detail::connection>(io_service_, error_handler);
 
 				c->socket().async_connect(it->endpoint(), [=](const auto& ec) {
 					if (ec)
+					{
+						error_handler(ec);
 						return;
+					}
 
 					c->handshake_client([=](const auto& ec) {
 						if (ec)
+						{
+							error_handler(ec);
 							return;
+						}
 
 						std::ostringstream os;
 
@@ -66,10 +76,15 @@ namespace ox
 						}
 
 						c->invoke_remote(0, os.str());
-						c->receive();
+						c->receive(error_handler);
 					});
 				});
 			});
+		}
+
+		void operator()(Arguments... args)
+		{
+			(*this)(args..., [](const auto&) {});
 		}
 
 	private:
