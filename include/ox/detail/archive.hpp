@@ -162,6 +162,12 @@ namespace ox
 		}
 
 		template <class Value>
+		void CEREAL_SAVE_FUNCTION_NAME(oarchive& ar, const cereal::SizeTag<Value>& value)
+		{
+			ar(value.size);
+		}
+
+		template <class Value>
 		typename std::enable_if<std::is_arithmetic<Value>::value>::type
 		CEREAL_LOAD_FUNCTION_NAME(iarchive& ar, Value& value)
 		{
@@ -184,6 +190,12 @@ namespace ox
 		void CEREAL_LOAD_FUNCTION_NAME(iarchive& ar, cereal::NameValuePair<Value>& value)
 		{
 			ar(value.value);
+		}
+
+		template <class Value>
+		void CEREAL_LOAD_FUNCTION_NAME(iarchive& ar, cereal::SizeTag<Value>& value)
+		{
+			ar(value.size);
 		}
 	}
 }
