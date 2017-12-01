@@ -273,7 +273,6 @@ namespace ox
 							return;
 						}
 
-						auto p = buffer->data();
 						auto type = static_cast<std::uint8_t>((*buffer)[0]);
 
 						if (type < 0x80)
